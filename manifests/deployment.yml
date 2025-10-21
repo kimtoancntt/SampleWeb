@@ -1,0 +1,19 @@
+apiVersion : apps/v1
+kind: Deployment
+metadata:
+  name: kimtoancnttsampleweb 
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kimtoancnttsampleweb
+  template:
+    metadata:
+      labels:
+        app: kimtoancnttsampleweb 
+    spec:
+      containers:
+        - name: kimtoancnttsampleweb 
+          image: acrdemolenx75.azurecr.io/kimtoancnttsampleweb
+          ports:
+          - containerPort: 80
