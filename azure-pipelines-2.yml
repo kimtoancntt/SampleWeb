@@ -1,0 +1,117 @@
+# azure-pipelines.yml - BALANCED VERSION (RECOMMENDED)
+
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - index.html
+      - Dockerfile
+
+variables:
+  - group: github-credentials
+  - group: acr-credentials
+  - name: dockerfilePath
+    value: '$(Build.SourcesDirectory)/Dockerfile'
+  - name: tag
+    value: '$(Build.BuildId)'
+  - name: imageRepository
+    value: 'nginx-website'
+  - name: acrServiceConnection
+    value: 'acr-connection'
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+steps:
+# ==================================
+# 1. Checkout Code
+# ==================================
+- checkout: self
+  displayName: 'Checkout Code'
+  clean: true
+  fetchDepth: 1
+
+# ==================================
+# 2. Display Info
+# ==================================
+- script: |
+    echo "Build ID: $(Build.BuildId)"
+    echo "Image: $(ACR_LOGIN_SERVER)/$(imageRepository):$(tag)"
+    echo "Files:"
+    ls -lah
+  displayName: 'Display Info'
+
+# ==================================
+# 3. Login to ACR
+# ==================================
+- task: Docker@2
+  displayName: 'Login to ACR'
+  inputs:
+    command: login
+    containerRegistry: $(acrServiceConnection)
+
+# ==================================
+# 4. Build Docker Image
+# ==================================
+- task: Docker@2
+  displayName: 'Build Image'
+  inputs:
+    command: build
+    repository: $(imageRepository)
+    dockerfile: $(dockerfilePath)
+    tags: |
+      $(tag)
+      latest
+    arguments: '--label "build.id=$(Build.BuildId)"'
+
+# ==================================
+# 5. Test Image
+# ==================================
+- script: |
+    docker run -d --name test -p 8080:80 $(ACR_LOGIN_SERVER)/$(imageRepository):$(tag)
+    sleep 3
+    curl -f http://localhost:8080 || exit 1
+    docker stop test && docker rm test
+    echo "✅ Image test passed"
+  displayName: 'Test Image'
+
+# ==================================
+# 6. Push to ACR
+# ==================================
+- task: Docker@2
+  displayName: 'Push to ACR'
+  inputs:
+    command: push
+    repository: $(imageRepository)
+    tags: |
+      $(tag)
+      latest
+
+# ==================================
+# 7. Verify
+# ==================================
+- script: |
+    az acr repository show-tags \
+      --name $(ACR_NAME) \
+      --repository $(imageRepository) \
+      --output table
+  displayName: 'Verify in ACR'
+
+# ==================================
+# 8. Summary
+# ==================================
+- script: |
+    echo "=========================================="
+    echo "✅ BUILD SUCCESSFUL"
+    echo "=========================================="
+    echo "Image: $(ACR_LOGIN_SERVER)/$(imageRepository):$(tag)"
+    echo ""
+    echo "Pull command:"
+    echo "docker pull $(ACR_LOGIN_SERVER)/$(imageRepository):$(tag)"
+    echo ""
+    echo "Run command:"
+    echo "docker run -d -p 80:80 $(ACR_LOGIN_SERVER)/$(imageRepository):$(tag)"
+    echo "=========================================="
+  displayName: 'Build Summary'
