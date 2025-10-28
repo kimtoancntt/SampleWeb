@@ -115,6 +115,20 @@ stages:
         command: 'get'
         arguments: 'nodes'
 
+    
+    # Kiểm tra giá trị biến image
+    - script: |
+        echo "=========================================="
+        echo "🔍 Kiểm tra giá trị image:"
+        echo "$(ACR_LOGIN_SERVER)/$(imageRepository):$(tag)"
+        echo "=========================================="
+      displayName: 'Check Image Value'
+
+    # Hiển thị nội dung manifest (nếu dùng Replace Tokens hoặc Helm)
+    - script: |
+        echo "📄 Nội dung deployment.yaml:"
+        cat $(Build.SourcesDirectory)/k8s/deployment.yaml
+      displayName: 'Show Manifest File'
     # 🔹 2. Deploy manifests
     - task: KubernetesManifest@1
       displayName: 'Deploy to AKS'
