@@ -16,6 +16,6 @@ spec:
     spec:
       containers:
       - name: nginx
-        image: $(ACR_LOGIN_SERVER)/$(imageRepository):$(tag)"
+        image: "sampleregister.azurecr.io/nginx-website:latest"
         ports:
         - containerPort: 80
