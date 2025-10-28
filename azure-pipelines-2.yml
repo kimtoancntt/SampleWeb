@@ -104,32 +104,45 @@ stages:
     steps:
     - checkout: self
 
-    # 🔹 1. Get AKS credentials dynamically
-    - task: Kubernetes@1
+    # ===============================================
+    # 🔹 1. Get AKS credentials dynamically (login Azure + get kubeconfig)
+    # ===============================================
+    - task: AzureCLI@2
       displayName: 'Get AKS Credentials'
       inputs:
-        connectionType: 'Azure Resource Manager'
-        azureSubscriptionEndpoint: $(azureRMConnection)
-        azureResourceGroup: $(AZURE_RG)
-        kubernetesCluster: $(AKS_CLUSTER)
-        command: 'get'
-        arguments: 'nodes'
+        azureSubscription: $(azureRMConnection)
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          echo "Fetching AKS credentials for cluster $(AKS_CLUSTER) in RG $(AZURE_RG)..."
+          az aks get-credentials --resource-group $(AZURE_RG) --name $(AKS_CLUSTER) --overwrite-existing
+          echo "✅ Connected to AKS cluster"
+          kubectl get nodes
 
-    
-    # Kiểm tra giá trị biến image
+    # ===============================================
+    # 🔹 2. Check Image Info
+    # ===============================================
     - script: |
         echo "=========================================="
-        echo "🔍 Kiểm tra giá trị image:"
+        echo "🔍 Image to deploy:"
         echo "$(ACR_LOGIN_SERVER)/$(imageRepository):$(tag)"
         echo "=========================================="
       displayName: 'Check Image Value'
 
-    # Hiển thị nội dung manifest (nếu dùng Replace Tokens hoặc Helm)
+    # ===============================================
+    # 🔹 3. Show manifest content
+    # ===============================================
     - script: |
-        echo "📄 Nội dung deployment.yaml:"
-        cat $(Build.SourcesDirectory)/k8s/deployment.yaml
+        echo "📄 Deployment manifest content:"
+        cat $(Build.SourcesDirectory)/k8s/deployment.yaml || echo "⚠️ deployment.yaml not found"
+        echo ""
+        echo "📄 Service manifest content:"
+        cat $(Build.SourcesDirectory)/k8s/service.yaml || echo "⚠️ service.yaml not found"
       displayName: 'Show Manifest File'
-    # 🔹 2. Deploy manifests
+
+    # ===============================================
+    # 🔹 4. Deploy manifests to AKS
+    # ===============================================
     - task: KubernetesManifest@1
       displayName: 'Deploy to AKS'
       inputs:
@@ -143,8 +156,13 @@ stages:
         containers: |
           $(ACR_LOGIN_SERVER)/$(imageRepository):$(tag)
 
-    # 🔹 3. Verify deployment
+    # ===============================================
+    # 🔹 5. Verify deployment
+    # ===============================================
     - script: |
+        echo "Verifying deployment..."
         kubectl get pods -n $(KUBE_NAMESPACE)
         kubectl get svc -n $(KUBE_NAMESPACE)
+        echo ""
+        echo "✅ Deployment verification complete!"
       displayName: 'Verify Deployment'
