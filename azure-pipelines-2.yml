@@ -90,17 +90,7 @@ steps:
       latest
 
 # ==================================
-# 7. Verify
-# ==================================
-- script: |
-    az acr repository show-tags \
-      --name $(ACR_NAME) \
-      --repository $(imageRepository) \
-      --output table
-  displayName: 'Verify in ACR'
-
-# ==================================
-# 8. Summary
+# 7. Summary
 # ==================================
 - script: |
     echo "=========================================="
