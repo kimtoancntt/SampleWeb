@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-website
+  labels:
+    app: nginx-website
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx-website
+  template:
+    metadata:
+      labels:
+        app: nginx-website
+    spec:
+      containers:
+      - name: nginx
+        image: $(ACR_LOGIN_SERVER)/nginx-website:$(Build.BuildId)
+        ports:
+        - containerPort: 80
