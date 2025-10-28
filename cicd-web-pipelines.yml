@@ -26,11 +26,11 @@ variables:
   - name: tag
     value: '$(Build.BuildId)'
   - name: acrServiceConnection
-    value: 'acr-connection'         # 🔹 Service connection type: Docker Registry (ACR)
+    value: 'acr-sd6027-connection'         # 🔹 Service connection type: Docker Registry (ACR)
   - name: azureRMConnection
-    value: 'azure-rm-connection'    # 🔹 Service connection type: Azure Resource Manager
+    value: 'azure-sd6027-rm-connection'    # 🔹 Service connection type: Azure Resource Manager
   - name: kubernetesConnection
-    value: 'aks-connection'         # 🔹 Service connection type: Kubernetes
+    value: 'aks-sd6027-connection'         # 🔹 Service connection type: Kubernetes
 
 pool:
   vmImage: 'ubuntu-latest'
