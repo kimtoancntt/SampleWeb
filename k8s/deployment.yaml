@@ -16,6 +16,6 @@ spec:
     spec:
       containers:
       - name: nginx
-        image: $(ACR_LOGIN_SERVER)/nginx-website:$(Build.BuildId)
+        image: $(ACR_LOGIN_SERVER)/$(imageRepository):$(tag)"
         ports:
         - containerPort: 80
