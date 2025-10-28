@@ -1,57 +1,69 @@
+# =============================================
+# Azure DevOps Pipeline - Build & Deploy to AKS
+# =============================================
+
 trigger:
   branches:
     include:
       - main
   paths:
     include:
-      - index.html
       - Dockerfile
+      - index.html
+      - k8s/*
 
+# =============================================
+# VARIABLES
+# =============================================
 variables:
-  - group: github-credentials
-  - group: acr-credentials
-  - group: aks-config
+  - group: github-credentials      # GITHUB_PAT, GITHUB_USERNAME
+  - group: acr-credentials         # ACR_NAME, ACR_LOGIN_SERVER, ACR_PASSWORD, ACR_USERNAME
+  - group: aks-config              # AZURE_RG, AKS_CLUSTER, KUBE_NAMESPACE
   - name: dockerfilePath
     value: '$(Build.SourcesDirectory)/Dockerfile'
-  - name: tag
-    value: '$(Build.BuildId)'
   - name: imageRepository
     value: 'nginx-website'
+  - name: tag
+    value: '$(Build.BuildId)'
   - name: acrServiceConnection
-    value: 'acr-connection'
-  - name: aksServiceConnection
-    value: 'aks-connection'
+    value: 'acr-connection'         # 🔹 Service connection type: Docker Registry (ACR)
+  - name: azureRMConnection
+    value: 'azure-rm-connection'    # 🔹 Service connection type: Azure Resource Manager
+  - name: kubernetesConnection
+    value: 'aks-connection'         # 🔹 Service connection type: Kubernetes
 
+pool:
+  vmImage: 'ubuntu-latest'
+
+# =============================================
+# STAGE 1 - BUILD & PUSH IMAGE
+# =============================================
 stages:
-# ==================================
-# 🔹 STAGE 1: Build & Push Image
-# ==================================
 - stage: BuildAndPush
-  displayName: "Build and Push Docker Image"
+  displayName: "Build & Push Docker Image"
   jobs:
   - job: BuildDocker
-    pool:
-      vmImage: 'ubuntu-latest'
+    displayName: "Build Docker Image"
     steps:
     - checkout: self
-      displayName: 'Checkout Code'
       clean: true
-      fetchDepth: 1
 
     - script: |
-        echo "Build ID: $(Build.BuildId)"
-        echo "Image: $(ACR_LOGIN_SERVER)/$(imageRepository):$(tag)"
-        ls -lah
-      displayName: 'Display Info'
+        echo "✅ Starting build for $(imageRepository):$(tag)"
+        echo "ACR Server: $(ACR_LOGIN_SERVER)"
+        echo "Dockerfile path: $(dockerfilePath)"
+      displayName: "Display Build Info"
 
+    # 🔹 Login to Azure Container Registry
     - task: Docker@2
       displayName: 'Login to ACR'
       inputs:
         command: login
         containerRegistry: $(acrServiceConnection)
 
+    # 🔹 Build Docker image
     - task: Docker@2
-      displayName: 'Build Image'
+      displayName: 'Build Docker Image'
       inputs:
         command: build
         repository: $(imageRepository)
@@ -59,8 +71,8 @@ stages:
         tags: |
           $(tag)
           latest
-        arguments: '--label "build.id=$(Build.BuildId)"'
 
+    # 🔹 Push Docker image to ACR
     - task: Docker@2
       displayName: 'Push to ACR'
       inputs:
@@ -71,47 +83,54 @@ stages:
           latest
 
     - script: |
-        echo "✅ BUILD SUCCESSFUL"
-        echo "Image: $(ACR_LOGIN_SERVER)/$(imageRepository):$(tag)"
-      displayName: 'Build Summary'
+        echo "✅ Image successfully pushed to ACR"
+        echo "Full path: $(ACR_LOGIN_SERVER)/$(imageRepository):$(tag)"
+      displayName: "Build Summary"
 
-# ==================================
-# 🔹 STAGE 2: Deploy to AKS
-# ==================================
-- stage: DeployToAKS
+# =============================================
+# STAGE 2 - DEPLOY TO AKS
+# =============================================
+- stage: Deploy
   displayName: "Deploy to AKS"
   dependsOn: BuildAndPush
+  condition: succeeded()
+
   jobs:
   - job: DeployK8s
+    displayName: "Deploy App to AKS"
     pool:
       vmImage: 'ubuntu-latest'
+
     steps:
     - checkout: self
-      displayName: 'Checkout Code'
 
-    # Get AKS credentials dynamically
+    # 🔹 1. Get AKS credentials dynamically
     - task: Kubernetes@1
-      displayName: 'Connect to AKS Cluster'
+      displayName: 'Get AKS Credentials'
       inputs:
         connectionType: 'Azure Resource Manager'
-        azureSubscription: $(aksServiceConnection)
+        azureSubscriptionEndpoint: $(azureRMConnection)
         azureResourceGroup: $(AZURE_RG)
         kubernetesCluster: $(AKS_CLUSTER)
         command: 'get'
         arguments: 'nodes'
 
-    # Deploy app to AKS
+    # 🔹 2. Deploy manifests
     - task: KubernetesManifest@1
       displayName: 'Deploy to AKS'
       inputs:
         action: 'deploy'
-        connectionType: 'azureResourceManager'
-        azureSubscription: $(aksServiceConnection)
-        azureResourceGroup: $(AZURE_RG)
-        kubernetesCluster: $(AKS_CLUSTER)
+        connectionType: 'kubernetes'
+        kubernetesServiceConnection: $(kubernetesConnection)
         namespace: $(KUBE_NAMESPACE)
         manifests: |
           $(Build.SourcesDirectory)/k8s/deployment.yaml
           $(Build.SourcesDirectory)/k8s/service.yaml
         containers: |
           $(ACR_LOGIN_SERVER)/$(imageRepository):$(tag)
+
+    # 🔹 3. Verify deployment
+    - script: |
+        kubectl get pods -n $(KUBE_NAMESPACE)
+        kubectl get svc -n $(KUBE_NAMESPACE)
+      displayName: 'Verify Deployment'
