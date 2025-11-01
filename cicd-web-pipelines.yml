@@ -26,11 +26,11 @@ variables:
   - name: tag
     value: '$(Build.BuildId)'
   - name: acrServiceConnection
-    value: 'acr-sd6027-connection'         # 🔹 Service connection type: Docker Registry (ACR)
+    value: 'acr-sd6027-connection'         # Service connection type: Docker Registry (ACR)
   - name: azureRMConnection
-    value: 'azure-sd6027-rm-connection'    # 🔹 Service connection type: Azure Resource Manager
+    value: 'azure-sd6027-rm-connection'    # Service connection type: Azure Resource Manager
   - name: kubernetesConnection
-    value: 'aks-sd6027-connection'         # 🔹 Service connection type: Kubernetes
+    value: 'aks-sd6027-connection'         # Service connection type: Kubernetes
 
 pool:
   vmImage: 'ubuntu-latest'
@@ -49,19 +49,19 @@ stages:
       clean: true
 
     - script: |
-        echo "✅ Starting build for $(imageRepository):$(tag)"
+        echo "Starting build for $(imageRepository):$(tag)"
         echo "ACR Server: $(ACR_LOGIN_SERVER)"
         echo "Dockerfile path: $(dockerfilePath)"
       displayName: "Display Build Info"
 
-    # 🔹 Login to Azure Container Registry
+    # Login to Azure Container Registry
     - task: Docker@2
       displayName: 'Login to ACR'
       inputs:
         command: login
         containerRegistry: $(acrServiceConnection)
 
-    # 🔹 Build Docker image
+    # Build Docker image
     - task: Docker@2
       displayName: 'Build Docker Image'
       inputs:
@@ -72,7 +72,7 @@ stages:
           $(tag)
           latest
 
-    # 🔹 Push Docker image to ACR
+    # Push Docker image to ACR
     - task: Docker@2
       displayName: 'Push to ACR'
       inputs:
@@ -83,7 +83,7 @@ stages:
           latest
 
     - script: |
-        echo "✅ Image successfully pushed to ACR"
+        echo "Image successfully pushed to ACR"
         echo "Full path: $(ACR_LOGIN_SERVER)/$(imageRepository):$(tag)"
       displayName: "Build Summary"
 
@@ -105,7 +105,7 @@ stages:
     - checkout: self
 
     # ===============================================
-    # 🔹 1. Get AKS credentials dynamically (login Azure + get kubeconfig)
+    # 1. Get AKS credentials dynamically (login Azure + get kubeconfig)
     # ===============================================
     - task: AzureCLI@2
       displayName: 'Get AKS Credentials'
@@ -116,11 +116,11 @@ stages:
         inlineScript: |
           echo "Fetching AKS credentials for cluster $(AKS_CLUSTER) in RG $(AZURE_RG)..."
           az aks get-credentials --resource-group $(AZURE_RG) --name $(AKS_CLUSTER) --overwrite-existing
-          echo "✅ Connected to AKS cluster"
+          echo "Connected to AKS cluster"
           kubectl get nodes
 
     # ===============================================
-    # 🔹 2. Check Image Info
+    # 2. Check Image Info
     # ===============================================
     - script: |
         echo "=========================================="
@@ -130,18 +130,18 @@ stages:
       displayName: 'Check Image Value'
 
     # ===============================================
-    # 🔹 3. Show manifest content
+    # 3. Show manifest content
     # ===============================================
     - script: |
         echo "📄 Deployment manifest content:"
-        cat $(Build.SourcesDirectory)/k8s/deployment.yaml || echo "⚠️ deployment.yaml not found"
+        cat $(Build.SourcesDirectory)/k8s/deployment.yaml || echo "deployment.yaml not found"
         echo ""
         echo "📄 Service manifest content:"
-        cat $(Build.SourcesDirectory)/k8s/service.yaml || echo "⚠️ service.yaml not found"
+        cat $(Build.SourcesDirectory)/k8s/service.yaml || echo "service.yaml not found"
       displayName: 'Show Manifest File'
 
     # ===============================================
-    # 🔹 4. Deploy manifests to AKS
+    # 4. Deploy manifests to AKS
     # ===============================================
     - task: KubernetesManifest@1
       displayName: 'Deploy to AKS'
@@ -157,12 +157,12 @@ stages:
           $(ACR_LOGIN_SERVER)/$(imageRepository):$(tag)
 
     # ===============================================
-    # 🔹 5. Verify deployment
+    # 5. Verify deployment
     # ===============================================
     - script: |
         echo "Verifying deployment..."
         kubectl get pods -n $(KUBE_NAMESPACE)
         kubectl get svc -n $(KUBE_NAMESPACE)
         echo ""
-        echo "✅ Deployment verification complete!"
+        echo "Deployment verification complete!"
       displayName: 'Verify Deployment'
